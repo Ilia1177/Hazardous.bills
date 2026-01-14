@@ -18,8 +18,8 @@ endif
 
 LDFLAGS += -L/usr/local/lib -lhpdf -lpng
 
-SRC_DIR = srcs/
-INC_DIR = incs/
+SRC_DIR = src/
+INC_DIR = inc/
 OBJ_DIR	= .objs/
 INCS		+= -I$(INC_DIR) -I/usr/local/include
 SRCS	= 	main.cpp\

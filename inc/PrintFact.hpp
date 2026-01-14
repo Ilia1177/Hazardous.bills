@@ -6,6 +6,10 @@
 #include <iostream>
 #include <map>
 #include <sstream>
+// #include <limits>
+
+// #include <filesystem>
+# define BILL_NUMBER_LENGTH 10
 
 #define INVOICE_DIR "factures/"
 #define ESTIMATE_DIR "devis/"
@@ -60,39 +64,44 @@ class PrintFact
   public:
     ~PrintFact();
     PrintFact(void);
+	void cleanup();
+	std::string formated_date();
+	std::string end_str(int size, int offset, bool reset = false);
+	void register_infos();
+	void register_job();
+    void make_printjob();
+    void register_header();
+    void register_footer();
+	void register_bill();
+	void receives(const std::string&);
+	void save_as(std::string& billNumber, std::string& clientName);
+	std::string bill_number(bool facture);
+    bool turn_pdf(std::ifstream&, const std::string&);
+    void read_section_from(const std::string&, std::map<std::string, double>&);
+    void read_section_from(const std::string&, std::map<std::string, std::pair<int, double> >&);
+    void read_section_from(const std::string&, std::map<double, double>&);
+    void define_job();
+	void define_copy();
+	void define_format();
+	void define_paper();
+	void define_colors(bool faceA);
+	void define_title();
+    void define_client();
+    void define_graphics();
+	void define_shipping();
+	void define_discount();
+    void calc_expend();
+	void calc_shipping_fees();
 	void to_zero();
     void        make_bill_from();
     bool        take_order();
     void        display_menu();
     void        new_ticket();
-    void        cleanup();
-    std::string formated_date();
-    std::string end_str(int size, int offset);
-    void        register_infos();
     void        to_png(std::string& folder, std::string& txtName);
-    void        register_job();
-    void        register_header();
-    void        register_footer();
-    void        register_bill();
-    void        receives(const std::string&);
     void        save_as(std::string& clientName);
     std::string bill_number(enum billType);
     bool        turn_pdf(const std::string&);
-    void        read_section_from(const std::string&, std::map<std::string, double>&);
-    void read_section_from(const std::string&, std::map<std::string, std::pair<int, double>>&);
-    void read_section_from(const std::string&, std::map<double, double>&);
     void new_job();
-    void define_copy();
-    void define_format();
-    void define_paper();
-    void define_colors(bool faceA);
-    void define_title();
-    void define_client();
-    void define_graphics();
-    void define_shipping();
-    void define_discount();
-    void calc_expend();
-    void calc_shipping_fees();
 
     template <typename T1, typename T2>
     std::string new_job_line(const std::string& start, T1 value1, T2 value2,
@@ -119,16 +128,16 @@ class PrintFact
     PrintFact(const PrintFact& other);
     PrintFact& operator=(const PrintFact& other);
 
-    void _initialize();
+	void _initialize();
+	int _margin;
+	int _width;
+	int _contentWidth;
+
+    std::map<std::string, double> _consumablePrices;
+    std::map<std::string, std::pair<int, double> > _paperPrices;
+	std::map<double, double>	_shippingCosts;
 
     ThermalPrinter _printer;
-    int            _margin;
-    int            _width;
-    int            _contentWidth;
-
-    std::map<std::string, double>                 _consumablePrices;
-    std::map<std::string, std::pair<int, double>> _paperPrices;
-    std::map<double, double>                      _shippingCosts;
 
 	std::string		  _headerJob;
 	std::string		  _footerJob;
@@ -146,22 +155,24 @@ class PrintFact
     std::string _clientAddress;
     std::string _paperName;
 
-    double _totalDiscount;
-    double _totalGraphics;
+	double _totalDiscount;
+	double _totalGraphics;
     double _total;
     double _totalLabor;
     double _totalInk;
     double _totalJob;
     double _totalPaper;
 
-    double _discount;
-    double _weight;
-    double _fees;
+	double _unitPrice;
+
+	double _discount;
+	double _weight;
+	double _fees;
     double _format;
     double _sheetPrice;
     double _sheetWeight;
     double _labor;
-    double _graphics;
+	double _graphics;
     int    _sheetNb;
     int    _totalMasters;
     int    _copy;

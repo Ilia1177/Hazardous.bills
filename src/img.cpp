@@ -201,7 +201,7 @@ unsigned char map_unicode_to_font2(char32_t c32) {
 	}
 
 static const unsigned char font8x16[256*16] = {
-    #include "../font8x16.inc"
+    #include "../inc/font8x16.inc"
 };
 #include <string>
 

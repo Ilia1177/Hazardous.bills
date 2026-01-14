@@ -1,7 +1,7 @@
 CompileFlags:
   Add:
   - "-I/opt/homebrew/include"
-  - -I../incs
+  - -I../inc
   - -std=c++17
   - -lhpdf 
   - -lpng

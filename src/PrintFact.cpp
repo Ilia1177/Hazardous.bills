@@ -148,60 +148,22 @@ bool PrintFact::take_order()
 
 	list = {"Nouvelle facture", "Facture d'après devis", "Nouveau ticket", "Exit"};
 
-	do {
+	while (!g_interrupt) {
 		clearScreen();
 		to_zero();
 		std::cout << _headerJob;
 		switch(dial_menu(list)) {
-			case 1:
-				new_job();
-				break;
-			case 2:
-				make_bill_from();
-				break;
-			case 3:
-				new_ticket();
-				break;
+			case 1: make_printjob(); break;
+			case 2: make_bill_from(); break;
+			case 3: new_ticket(); break;
 			case 4:
 			case 0:
 			default:
 				return false;
 		}
-	} while (!g_interrupt);
+	}
+
 	return true;
-	// std::string line;
-	// do {
-	// 	if (_header.is_open()) {
-	// 		std::stringstream buffer;
-	// 		buffer << _header.rdbuf();
-	// 		std::cout << buffer.str();
-	// 	}
-	// 	display_menu();
-	// 	user_input("Select: ", line, true);
-	// 	if (line == "1") {
-	// 		new_job();
-	// 		register_bill();
-	// 		save_as(_clientName);
-	// 	} else if (line == "2") {
-	// 		make_bill_from();
-	// 	} else if (line == "3") {
-	// 		moveCursorUp(6);
-	//
-	// 		for (int i = 0; i < 6; ++i)
-	// 		{
-	// 			clearLine();
-	// 			std::cout << "\n";
-	// 		}
-	//
-	// 		moveCursorUp(6);
-	// 		new_ticket();
-	// 	} else if (line == "4" || line == "exit") {
-	// 		break;
-	// 	} else {
-	// 		std::cerr << "invlalid choice.";
-	// 	}
-	// } while (!g_interrupt);
-	// return true;
 }
 
 void PrintFact::make_bill_from()
@@ -263,7 +225,7 @@ void PrintFact::receives(const std::string& arg)
 {
 	if (arg == "-d") {
 		std::string testName = _clientName + "-test";
-		register_bill();
+		make_printjob();
 		save_as(testName);
 	} else {
 		take_order();
@@ -364,6 +326,7 @@ void PrintFact::to_zero() {
     _totalJob = 0.0;
     _totalPaper = 0.0;
 
+	_unitPrice = 0.0;
 	_discount = 0.0;
 	_weight = 0.0;
 	_fees = 0.0;
@@ -385,13 +348,19 @@ void PrintFact::to_zero() {
 
 void PrintFact::new_job()
 {
+	end_str(0, 0, true);
 	std::string line = "";
 
-	user_input(fit(" ", 4) + "Nom client ?: ", _clientName, true);
-	user_input(fit(" ", 4) + "Adresse client: ?: ", _clientAddress, false, MAX_EMAIL_LENGTH);
 	user_input(fit(" ", 4) + "Intitulé : ", _title, false, MAX_TITLE_LENGTH);
 	user_value(fit(" ", 4) + "Format (nombre de feuilles A3 pour un exemplaire): ", _format, true);
 	user_value(fit(" ", 4) + "Copies: ", _copy, true);
+	user_input(fit(" ", 4) + "Relié (y/n): ", line, false); 
+	if (line == "y" || line == "Y") {
+		_unitPrice = _copy;
+	} else {
+		_unitPrice = _copy * _format;
+	}
+	std::cout << "UNIT PRICE IS: " << _unitPrice << std::endl;
 	user_value(fit(" ", 4) + "Couleurs face A: ", _colorsFaceA, true);
 	user_value(fit(" ", 4) + "Couleurs face B: ", _colorsFaceB, false);
 	while (!g_interrupt) {
@@ -414,8 +383,15 @@ void PrintFact::new_job()
 	if (g_interrupt)
 		return;
     calc_expend();
-	register_bill();
-	save_as(_clientName);
+	register_job();
+	clearScreen();
+	std::cout << _outStream.str();
+	user_input("Add an other printing job ? (y/n) ", line, false);
+	if (line == "y" || line == "Y") {
+		_outStream << "    ****************************************************************\n\n";
+		new_job();
+	}
+	// save_as(_clientName);
 }
 
 void PrintFact::calc_shipping_fees()
@@ -454,7 +430,7 @@ void PrintFact::calc_expend()
 
 	_layers = _colorsFaceA + _colorsFaceB;
 	_sheetNb = _format * _copy + _layers * 5;
-    _labor = 3 + (_colorsFaceA + _colorsFaceB) * _format;
+    _labor = (2 + _layers) * _format;
     _totalGraphics = _graphics * graphicsPrice;
     _totalPaper = _sheetNb * _sheetPrice;
     _totalInk = _sheetNb * (_colorsFaceB + _colorsFaceA) * inkPrice;
@@ -464,6 +440,7 @@ void PrintFact::calc_expend()
     _totalDiscount = _totalJob * (_discount / 100.0);
     calc_shipping_fees();
     _totalJob -= _totalDiscount + _fees;
+	_unitPrice = _totalJob / _unitPrice;
 	_total += _totalJob;
 }
 
@@ -505,6 +482,9 @@ std::string to_hex(int value) {
 void PrintFact::save_as(std::string& clientName)
 {
     std::string       input;
+
+	clearScreen();
+	std::cout << _outStream.str();
 	user_input("Save the bill > (y/n): ", input, false);
     if (input != "Y" && input != "y") {
 		user_input("Quit without saving. Press any key to continue.", input, false, 0);
@@ -556,14 +536,16 @@ void PrintFact::to_png(std::string& folder, std::string& fileName) {
 	std::cout << pngPath << " has been saved as PNG\n";
 }
 
-void PrintFact::register_bill()
+void PrintFact::make_printjob()
 {
     register_header();
 	register_infos();
-    register_job();
+	new_job();
+    // register_job();
     register_footer();
+	save_as(_clientName);
 	clearScreen();
-    std::cout << _outStream.str();
+    // std::cout << _outStream.str();
 }
 
 void PrintFact::register_footer()
@@ -574,13 +556,17 @@ void PrintFact::register_footer()
 	_outStream << _footerJob;
 }
 
-std::string PrintFact::end_str(int size = 22, int offset = 0)
+std::string PrintFact::end_str(int size = 22, int offset = 0, bool reset)
 {
 	static bool firstUse = true;
     static std::random_device rd;
     static std::mt19937 generator(rd());
 	static std::string poem;
 
+	if (reset) {
+		firstUse = false;
+		return "";
+	}
 	std::string off(" ");
     for (int i = 0; i < offset; i++) {
         off += " ";
@@ -652,7 +638,11 @@ std::string PrintFact::formated_date() {
 }
 
 void PrintFact::register_infos() {
-	std::string current_date = formated_date();
+
+	// std::string current_date = formated_date();
+	
+	user_input(fit(" ", 4) + "Nom client ?: ", _clientName, true);
+	user_input(fit(" ", 4) + "Adresse client: ?: ", _clientAddress, false, MAX_EMAIL_LENGTH);
     _outStream << "    ****************************************************************\n";
     std::string address = _clientAddress.empty() ? "" : " (" + _clientAddress + ")";
 	_billNumber = bill_number(ESTIMATE);
@@ -694,8 +684,7 @@ void PrintFact::register_job()
     _outStream << "    |=======================================|" + end_str();
     _outStream << "    |TOTAL TTC" + fit(_totalJob, 29) + "€" + "|" + end_str();
     _outStream << "    |=======================================|" + end_str();
-    _outStream << "    |" + fit(_totalJob / _copy, 32) + "€/copie|" + end_str() + "\n";
-
+    _outStream << "    |" + fit(_unitPrice, 32) + "€/copie|" + end_str() + "\n";
 }
 
 void PrintFact::read_section_from(const std::string& section, std::map<std::string, std::pair<int, double> >& list)
