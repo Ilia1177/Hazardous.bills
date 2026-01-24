@@ -51,9 +51,7 @@ std::stringstream printMap(const std::map<std::string, std::pair<int, double>>& 
 void              trim(std::string& str);
 std::string       to_hex(int value);
 
-template <typename T> std::string fit(T value, int width, int precision = 2, char fillChar = 32)
-{
-    std::ostringstream oss;
+template <typename T> std::string fit(T value, int width, int precision = 2, char fillChar = 32) { std::ostringstream oss;
     oss << std::setfill(fillChar) << std::setw(width) << std::fixed << std::setprecision(precision) << value;
     return oss.str();
 }
@@ -162,6 +160,7 @@ class PrintFact
     double _totalInk;
     double _totalJob;
     double _totalPaper;
+	double _totalShaping;
 
 	double _unitPrice;
 
@@ -173,6 +172,8 @@ class PrintFact
     double _sheetWeight;
     double _labor;
 	double _graphics;
+	int    _staples;
+	int	   _folds;
     int    _sheetNb;
     int    _totalMasters;
     int    _copy;

@@ -146,7 +146,7 @@ bool PrintFact::take_order()
 {
 	std::vector<std::string> list;
 
-	list = {"Nouvelle facture", "Facture d'après devis", "Nouveau ticket", "Exit"};
+	list = {"Nouveau devis", "Facture d'après devis", "Nouveau ticket", "Exit"};
 
 	while (!g_interrupt) {
 		clearScreen();
@@ -325,6 +325,7 @@ void PrintFact::to_zero() {
     _totalInk = 0.0;
     _totalJob = 0.0;
     _totalPaper = 0.0;
+	_totalShaping = 0.0;
 
 	_unitPrice = 0.0;
 	_discount = 0.0;
@@ -336,6 +337,8 @@ void PrintFact::to_zero() {
     _labor = 0.0;
 	_graphics = 0.0;
 
+	_staples = 0;
+	_folds = 0;
     _sheetNb = 0;
     _totalMasters = 0;
     _copy = 0;
@@ -354,13 +357,13 @@ void PrintFact::new_job()
 	user_input(fit(" ", 4) + "Intitulé : ", _title, false, MAX_TITLE_LENGTH);
 	user_value(fit(" ", 4) + "Format (nombre de feuilles A3 pour un exemplaire): ", _format, true);
 	user_value(fit(" ", 4) + "Copies: ", _copy, true);
-	user_input(fit(" ", 4) + "Relié (y/n): ", line, false); 
+	user_input(fit(" ", 4) + "Façonnage (y/n): ", line, false); 
+	_unitPrice = _copy * _format;
 	if (line == "y" || line == "Y") {
-		_unitPrice = _copy;
-	} else {
-		_unitPrice = _copy * _format;
+		user_value("Agrafe par ex: ", _staples, false);
+		user_value("Plis par ex: ", _folds, false);
+		if (_staples > 0) _unitPrice = _copy; // -> reliure !
 	}
-	std::cout << "UNIT PRICE IS: " << _unitPrice << std::endl;
 	user_value(fit(" ", 4) + "Couleurs face A: ", _colorsFaceA, true);
 	user_value(fit(" ", 4) + "Couleurs face B: ", _colorsFaceB, false);
 	while (!g_interrupt) {
@@ -413,20 +416,24 @@ void PrintFact::calc_shipping_fees()
 
 void PrintFact::calc_expend()
 {
-    double inkPrice, masterPrice, graphicsPrice;
+    double inkPrice, masterPrice, graphicsPrice, shapingPrice;
     auto   itInk = _consumablePrices.find("ink");
     auto   itMaster = _consumablePrices.find("master");
     auto   itGraphics = _consumablePrices.find("graphics");
+    auto   itShaping = _consumablePrices.find("fold/staple");
     if (itInk == _consumablePrices.end()) {
         throw std::invalid_argument("missing ink price");
     } else if (itMaster == _consumablePrices.end()) {
         throw std::invalid_argument("missing master price");
     } else if (itGraphics == _consumablePrices.end()) {
         throw std::invalid_argument("missing graphics price");
+    } else if (itShaping == _consumablePrices.end()) {
+        throw std::invalid_argument("missing fold/staple price");
     }
     inkPrice = itInk->second;
     masterPrice = itMaster->second;
     graphicsPrice = itGraphics->second;
+	shapingPrice = itShaping->second;
 
 	_layers = _colorsFaceA + _colorsFaceB;
 	_sheetNb = _format * _copy + _layers * 5;
@@ -436,6 +443,8 @@ void PrintFact::calc_expend()
     _totalInk = _sheetNb * (_colorsFaceB + _colorsFaceA) * inkPrice;
     _totalMasters = (_colorsFaceB + _colorsFaceA) * masterPrice;
     _totalLabor = _labor * 10;
+	// _unitPrice holds the real copy number (copy of a books)
+	_totalShaping = (_staples + _folds) * shapingPrice * _unitPrice;
     _totalJob = _totalPaper + _totalMasters + _totalInk + _totalLabor + _totalGraphics;
     _totalDiscount = _totalJob * (_discount / 100.0);
     calc_shipping_fees();
@@ -674,6 +683,7 @@ void PrintFact::register_job()
 	_outStream << new_job_line("feuilles A3", _sheetNb, _totalPaper, end_str());
 	_outStream << new_job_line("masters", _layers, _totalMasters, end_str());
 	_outStream << new_job_line("encre (passages)", _sheetNb * _layers, _totalInk, end_str());
+	_outStream << new_job_line("plis et/ou agrafe", _staples + _folds, _totalShaping, end_str());
     _outStream << "    |---------------------------------------|" << end_str();
 	_outStream << new_job_line("impression", _labor, _totalLabor, end_str());
 	_outStream << new_job_line("graphisme", _graphics, _totalGraphics, end_str());
