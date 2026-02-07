@@ -131,13 +131,15 @@ void PrintFact::new_ticket() {
 	if (entry == "y" || entry =="Y") {
 		if (!_printer.is_open()) {
 			user_input("Open device at: ", entry, false, 56);
-			if (!_printer.init(entry))
+			txtToPng("tickets/" + fileName + ".txt", "tickets/png/" + fileName + ".png");
+			if (!_printer.init(entry)) {
 				std::cerr << "Error init device.\n";
+				return;
+			}
 		}
-		txtToPng("tickets/" + fileName + ".txt", "tickets/png/" + fileName + ".png");
-		std::cout << "Ascii made\n";
 		_printer.align(CENTER);
 		_printer.printPNG("tickets/png/" + fileName + ".png");
+		std::cout << "Ascii made\n";
 	}
 	user_input("Press any key to continue. ", entry, false, 0);
 }

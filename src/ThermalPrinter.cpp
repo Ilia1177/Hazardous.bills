@@ -156,6 +156,7 @@ void ThermalPrinter::reset() {
     writeCommand(cmd);
     usleep(50000);  // Wait 50ms for reset to complete
 }
+
 // void ThermalPrinter::writeCommand(const std::vector<unsigned char>& cmd, int timeout_sec)
 // {
 // 	if (!check_connection()) {
@@ -298,6 +299,7 @@ bool ThermalPrinter::open_device(const std::string& path) {
 	}
 	return true;
 }
+
 // bool ThermalPrinter::open_device2(const std::string& path) {
 //     if (path.empty()) {
 //         return false;
@@ -448,11 +450,14 @@ void ThermalPrinter::printPNG(const std::string& filename) {
         free(rows[y]);
     }
 
+	std::cout << "Write header to printer\n";
 	writeCommand(header);
+	std::cout << "Write buffer to printer\n";
 	writeCommand(imageBuffer);
 	// writeCommand(CMD_FEED_LINES);
 	std::vector<unsigned char> feed = {0x1B, 0x64, 0xF};  // Feed 5 lines
 	writeCommand(feed);
     png_destroy_read_struct(&png, &info, nullptr);
+	std::cout << "Done printing\n";
 }
 

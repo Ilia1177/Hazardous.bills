@@ -22,6 +22,7 @@ size_t utf8_char_count(const std::string& s) {
     }
     return count;
 }
+
 unsigned char map_unicode_to_font(char32_t c32)
 {
     // 1) ASCII (exact match)

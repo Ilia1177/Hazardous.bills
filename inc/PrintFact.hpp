@@ -43,7 +43,7 @@ bool user_input(const std::string& str, std::string& input, bool blocking, size_
 bool user_value(const std::string& str, int& value, bool blocking);
 bool user_value(const std::string& str, double& value, bool blocking);
 
-std::string getUserLine(const std::string& str);
+std::string		  getUserLine(const std::string& str);
 std::istream&     get_trimmed_line(const std::string& str, std::istream& fd, std::string& line);
 std::string       sanitize_filename(const std::string& name);
 std::string       random_string(size_t length, const std::vector<std::string>& charset);

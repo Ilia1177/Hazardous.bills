@@ -1,3 +1,5 @@
 .objs/
 .DS_Store
 **/*.o
+bill/
+tickets/
