@@ -204,6 +204,7 @@ unsigned char map_unicode_to_font2(char32_t c32) {
 static const unsigned char font8x16[256*16] = {
     #include "../inc/font8x16.inc"
 };
+
 #include <string>
 
 // lines[row] is a UTF-8 std::string

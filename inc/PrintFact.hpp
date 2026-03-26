@@ -152,6 +152,7 @@ class PrintFact
     std::string _title;
     std::string _clientAddress;
     std::string _paperName;
+	std::string	_customln;
 
 	double _totalDiscount;
 	double _totalGraphics;
@@ -161,6 +162,7 @@ class PrintFact
     double _totalJob;
     double _totalPaper;
 	double _totalShaping;
+	double _totalCustom;
 
 	double _unitPrice;
 

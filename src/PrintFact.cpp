@@ -34,7 +34,7 @@ PrintFact::PrintFact()
 }
 
 void PrintFact::display_menu() {
-	std::cout << "    Make your choice ****\n";
+std::cout << "    Make your choice ****\n";
 	std::cout << "    1. Nouvelle facture.\n";
 	std::cout << "    2. Facture d'apres devis.\n";
 	std::cout << "    3. Nouveau ticket.\n";
@@ -174,9 +174,10 @@ void PrintFact::make_bill_from()
 
 	while(!g_interrupt) {
 		user_input("Numeros de devis: ", bill_num, true);
-		if (bill_num.length() != BILL_NUMBER_LENGTH) {
+		std::cout << "lookinf for: " << bill_num << std::endl;
+		if (bill_num.length() != BILL_NUMBER_LENGTH + 1) {
 			clearInputLine();
-			std::cerr << "Invalid number. ";
+			std::cerr << "Invalid number. Should be formatted as 'XXXXXX-XXXX'. ";
 		} else if (get_bill_filename(bill_num).empty()) {
 			clearInputLine();
 			std::cerr << "No devis at number " << bill_num << ". ";
@@ -319,6 +320,7 @@ void PrintFact::to_zero() {
     _title.clear();
     _clientAddress.clear();
     _paperName.clear();
+	_customln.clear();
 
 	_totalDiscount = 0.0;
 	_totalGraphics = 0.0;
@@ -328,6 +330,7 @@ void PrintFact::to_zero() {
     _totalJob = 0.0;
     _totalPaper = 0.0;
 	_totalShaping = 0.0;
+	_totalCustom = 0.0;
 
 	_unitPrice = 0.0;
 	_discount = 0.0;
@@ -387,10 +390,19 @@ void PrintFact::new_job()
 	user_value(fit(" ", 4) + "Réduction (%): ", _discount, false);
 	if (g_interrupt)
 		return;
+	// add custom parts
+	user_input("Add an line ? (y/n) ", line, false);
+	if (line == "y" || line == "Y") {
+		user_input("Objet ?:", _customln, true);
+		user_value("Price ?:", _totalCustom, true);
+	}
     calc_expend();
 	register_job();
 	clearScreen();
 	std::cout << _outStream.str();
+
+
+
 	user_input("Add an other printing job ? (y/n) ", line, false);
 	if (line == "y" || line == "Y") {
 		_outStream << "    ****************************************************************\n\n";
@@ -452,6 +464,7 @@ void PrintFact::calc_expend()
     calc_shipping_fees();
     _totalJob -= _totalDiscount + _fees;
 	_unitPrice = _totalJob / _unitPrice;
+	_total += _totalCustom;
 	_total += _totalJob;
 }
 
@@ -697,6 +710,12 @@ void PrintFact::register_job()
     _outStream << "    |TOTAL TTC" + fit(_totalJob, 29) + "€" + "|" + end_str();
     _outStream << "    |=======================================|" + end_str();
     _outStream << "    |" + fit(_unitPrice, 32) + "€/copie|" + end_str() + "\n";
+
+	if (!_customln.empty()) {
+		_outStream << "                Objet                            |         prix    |\n";
+		_outStream << "    ---------------------------------------------------------------|\n";
+		_outStream << fit("|", 5) << _customln << fit("|", 45 - _customln.length()) << fit(_totalCustom, 16) + "€|\n\n"; 
+	}
 }
 
 void PrintFact::read_section_from(const std::string& section, std::map<std::string, std::pair<int, double> >& list)

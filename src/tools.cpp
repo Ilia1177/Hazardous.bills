@@ -168,18 +168,21 @@ std::string get_bill_filename(const std::string& pattern)
     }
     for (const auto& entry : fs::directory_iterator("factures")) {
         std::string filename = entry.path().filename().string();
+		std::cout << "looking at: " << filename << std::endl;
         if (filename.find(pattern) != std::string::npos) {
             return filename;
         }
     }
     for (const auto& entry : fs::directory_iterator("devis")) {
         std::string filename = entry.path().filename().string();
+		std::cout << "looking at: " << filename << std::endl;
         if (filename.find(pattern) != std::string::npos) {
             return filename;
         }
     }
     for (const auto& entry : fs::directory_iterator("tickets")) {
         std::string filename = entry.path().filename().string();
+		std::cout << "looking at: " << filename << std::endl;
         if (filename.find(pattern) != std::string::npos) {
             return filename;
         }
