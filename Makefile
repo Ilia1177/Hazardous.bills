@@ -1,8 +1,5 @@
 NAME 	= 	bill
 OS = $(shell uname)
-
-CXXFLAGS	=	-Wall -Wextra -Werror -std=c++17 -g -O0
-ASANFLAGS   = -fsanitize=address
 ifeq ($(OS), Darwin)
 	CXX 		=	g++
 else
@@ -12,21 +9,37 @@ endif
 # Homebrew paths for macOS
 BREW_PREFIX = $(shell brew --prefix 2>/dev/null)
 ifneq ($(BREW_PREFIX),)
-    INCS = -I$(BREW_PREFIX)/include
+    PKG_CONFIG_PATH := $(BREW_PREFIX)/lib/pkgconfig
+    export PKG_CONFIG_PATH
+    INCS    = -I$(BREW_PREFIX)/include
+	INCS += -I$(BREW_PREFIX)/include/cairo
+    INCS += -I$(BREW_PREFIX)/include/pango-1.0
+    INCS += -I$(BREW_PREFIX)/include/glib-2.0
+    INCS += -I$(BREW_PREFIX)/lib/glib-2.0/include
+	INCS += -I$(BREW_PREFIX)/include/harfbuzz
     LDFLAGS += -L$(BREW_PREFIX)/lib
 endif
 
-LDFLAGS += -L/usr/local/lib -lhpdf -lpng
+PKG_CFLAGS  = $(shell pkg-config --cflags cairo pango pangocairo)
+PKG_LIBS    = $(shell pkg-config --libs   cairo pango pangocairo)
+
+CXXFLAGS	=	-Wall -Wextra -Werror -std=c++20 -g -O0 $(INCS) $(PKG_CFLAGS)
+ASANFLAGS   = -fsanitize=address
+
+LDFLAGS  += -L/usr/local/lib -lpng -lsqlite3 $(PKG_LIBS)
 
 SRC_DIR = src/
 INC_DIR = inc/
 OBJ_DIR	= .objs/
 INCS		+= -I$(INC_DIR) -I/usr/local/include
 SRCS	= 	main.cpp\
+			PrintFact.cpp\
+			Risography.cpp\
+			Database.cpp\
 			tools.cpp\
 			img.cpp\
-			PrintFact.cpp\
-			ThermalPrinter.cpp\
+			Facture.cpp\
+			Font.cpp \
 
 SRCS 	:= 	$(addprefix $(SRC_DIR), $(SRCS))
 OBJS	=	$(SRCS:$(SRC_DIR)%.cpp=$(OBJ_DIR)%.o)
@@ -36,7 +49,7 @@ all 			: $(NAME)
 asan: CXXFLAGS += $(ASAN_CXXFLAGS)
 asan: re
 
-install: checl_lib
+install: check_lib
 	#brew install libharu
 	#brew install libpng
 
@@ -52,19 +65,19 @@ check_lib:
 
 # Install libharu based on the system
 install_lib:
-	@echo "Detecting system..."
+	export PKG_CONFIG_PATH="$(brew --prefix)/lib/pkgconfig" && echo "Detecting system..."
 	@if [ -f /etc/debian_version ]; then \
 		echo "Debian/Ubuntu detected. Installing libharu..."; \
-		sudo apt-get update && sudo apt-get install -y libhpdf-dev; \
+		sudo apt-get update && sudo apt-get install -y libhpdf-dev libcairo2-dev libpango1.0-dev ; \
 	elif [ -f /etc/redhat-release ]; then \
 		echo "RedHat/Fedora/CentOS detected. Installing libharu..."; \
-		sudo yum install -y libharu-devel || sudo dnf install -y libharu-devel; \
+		sudo yum install -y libharu-devel || sudo dnf install -y libharu-devel libcairo2-dev libpango1.0-dev ;  \
 	elif [ -f /etc/arch-release ]; then \
 		echo "Arch Linux detected. Installing libharu..."; \
-		sudo pacman -S --noconfirm libharu; \
+		sudo pacman -S --noconfirm libharu libcairo2-dev libpango1.0-dev ; \
 	elif command -v brew >/dev/null 2>&1; then \
 		echo "macOS (Homebrew) detected. Installing libharu..."; \
-		brew install libharu; \
+		brew install libharu cairo pango pkg-config pkg-config;\
 	else \
 		echo "Unsupported system. Please install libharu manually."; \
 		exit 1; \

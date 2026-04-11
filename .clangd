@@ -3,6 +3,6 @@ CompileFlags:
   - "-I/opt/homebrew/include"
   - -I../inc
   - -std=c++17
-  - -lhpdf 
+  - -lhpdf
   - -lpng
 

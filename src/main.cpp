@@ -1,33 +1,38 @@
+#include "Facture.hpp"
 #include "PrintFact.hpp"
 #include <csignal>
-#include <locale>
 #include <exception>
+#include <map>
+#include <fstream>
 
 bool g_interrupt = false;
 
-void signal_handler(int signal) {
+void signal_handler(int signal)
+{
     if (signal == SIGINT) {
-        // std::cout << "\n\nReceived Ctrl+C (SIGINT)" << std::endl;
-        // std::cout << "Quit the Hazardous Collective" << std::endl;
-		// throw std::exception();
-		g_interrupt = true;
+        g_interrupt = true;
     }
 }
 
-int main(int ac, char** av) {
-    // std::setlocale(LC_ALL, "en_US.UTF-8");
-    signal(SIGINT, signal_handler);
-	std::string arg("");
-	std::ifstream estimate;
-	if (ac > 1) {
-		arg = av[1];
-	}
+int main(int ac, char** av)
+{
+    // signal(SIGINT, signal_handler);
+
+	struct sigaction sa{};
+    sa.sa_handler = signal_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+
+    sigaction(SIGINT, &sa, nullptr);
+
 	try {
-		PrintFact billing;
-		billing.receives(arg);
+		Facturier facturier;
+		facturier.run(ac, av);
+	} catch (std::invalid_argument& e) {
+		std::cout << "Illegal option: " << e.what() << std::endl;
 	} catch (std::exception& e) {
-		std::cerr << "Error: " << e.what() << "\n";
-		return 1;
+		std::cout << "Error: " << e.what() << std::endl;
 	}
-	return 0;
+
+    return 0;
 }
