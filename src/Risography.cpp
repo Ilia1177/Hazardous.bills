@@ -1,4 +1,5 @@
 #include "Risography.hpp"
+#include "tools.h"
 #include "PrintFact.hpp"
 // Default constructor
 
@@ -224,8 +225,8 @@ double Risography::total_imposition() {
 	return imposition_amount * imposition_price;
 }
 
-void Risography::calc_quantity() {
-
+void Risography::calc_quantity() 
+{
 	facturier->verbose("calculating quantity...");
 	masters_quantity = layersA + layersB;
 	int printedSheets = static_cast<int>(std::ceil(format * copy));

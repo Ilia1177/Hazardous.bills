@@ -1,25 +1,29 @@
 #include "Facture.hpp"
+#include "tools.h"
 #include <cmath>
 #include <chrono>
 #include <sstream>
 #include "PrintFact.hpp"
 // Default constructor
 Facture::Facture(Facturier* f):
-	total(0), client_name(""), client_email(""), type(Facture::TYPE::DEVIS), facturier(f)
+	total(0), 
+	type(Facture::TYPE::DEVIS),
+	status(Facture::STATUS::DRAFT),
+	facturier(f)
 {
 	if (!f) {
 		throw std::runtime_error("facturier not ready");
 	}
-    // auto now = std::chrono::system_clock::now();
-    // auto now_time_t = std::chrono::system_clock::to_time_t(now);
-    get_formated_date(true);
+    date = get_formated_date(true);
 	number = generate_number(type);
 }
 
 // Destructor
 Facture::~Facture(void) {
-	for (size_t i = 0; i < risoprints.size(); i++) {
-		delete risoprints[i];
+	if (client)
+		delete client;
+	for (auto riso : riso_prints) {
+		delete riso;
 	}
 }
 
@@ -29,21 +33,87 @@ std::string Facture::get_formated_date(bool init)
 	if (init) {
 		auto now = std::chrono::system_clock::now();
 		auto now_time_t = std::chrono::system_clock::to_time_t(now);
-		date = *std::localtime(&now_time_t);
+		chrono = *std::localtime(&now_time_t);
 	}
-    current_date << fit(date.tm_mday, 2, 2, '0')
-				<< "/" << fit(date.tm_mon + 1, 2, 2, '0')
-				<< "/" << date.tm_year + 1900;
+    current_date << fit(chrono.tm_mday, 2, 2, '0')
+				<< "/" << fit(chrono.tm_mon + 1, 2, 2, '0')
+				<< "/" << chrono.tm_year + 1900;
 	return current_date.str();
 }
 
-std::string Facture::get_facture_stream() {
+std::string Facture::generate_infos()
+{
+	facturier->verbose("infos stream");
 	std::stringstream ss;
-	ss << header_strm;
-	ss << infos_strm;
-	ss << jobs_strm;
-	ss << custom_strm;
-	ss << footer_strm;
+	std::string address, t;
+	// if (_facture) {
+	switch(type) {
+		case Facture::TYPE::FACTURE: t = "facture"; break;
+		case Facture::TYPE::DEVIS: t = "devis"; break;
+		case Facture::TYPE::TICKET: t = "ticket"; break;
+		default: t = "unknown";
+	}
+	address = client->get_email().empty() ? "" : " (" + client->get_email() + ")";
+	// }
+	ss << "    ****************************************************************\n";
+	ss << "    " << t << " n°" + number + " du: " + date + "\n";
+	ss << "    à: " << client->get_name() << address << "\n";
+	ss << "    ****************************************************************\n\n";
+	return ss.str();
+}
+
+std::string Facture::generate_riso() {
+	facturier->verbose("riso stream");
+	std::stringstream ss;
+	int count = 0;
+	for (auto it : riso_prints) {
+		if (count > 0)
+			ss << "****************************************************************\n";
+		ss << it->generate_stream();
+		count++;
+	}
+	return ss.str();
+}
+
+std::string Facture::generate_stream() {
+	std::stringstream ss;
+	ss << facturier->generate_header();
+	ss << generate_infos();
+	ss << generate_riso();
+
+	ss << generate_custom();
+	ss << generate_footer();
+	return ss.str();
+}
+
+std::string Facture::generate_custom() {
+	facturier->verbose("custom stream");
+	std::stringstream ss("");
+	
+	if (customs.size() > 0) {
+			ss << "    |         objet         | quantite |  prix unitaire  |  total  |\n";
+			ss << "    |=======================|==========|=================|=========|\n";
+		for (const auto& [key, value] : customs) {
+			ss << fit("|", 5) << key;
+			ss << fit("|", 24 - key.length());
+			ss << fit(value.first, 10) << "|";
+			ss << fit(value.second, 17) << "|";
+			ss << fit(value.first * value.second, 8) << "€|\n"; 
+			ss << "    |-----------------------|----------|-----------------|---------|\n";
+		}
+		ss << "\n";
+	}
+	return ss.str();
+}
+
+std::string Facture::generate_footer()
+{
+	std::stringstream ss;
+	facturier->verbose("footer stream");
+    ss << "    ****************************************************************\n";
+    ss << "    Total des Sômmes dues:" + fit(get_total(), 41) + "€\n";
+    ss << "    ****************************************************************\n";
+	ss << facturier->get_conditions_of_sales();
 	return ss.str();
 }
 
@@ -65,26 +135,68 @@ std::string Facture::get_type() const {
 	}
 }
 
+std::string Facture::get_filename() const 
+{
+	if (!client) throw std::logic_error("no client in facture");
+	std::stringstream filename("");
+
+	filename << number << "-";
+
+	for(unsigned char it : client->get_name()) {
+		if (filename.str().length() > 21)
+			break;
+		if (std::isalnum(it))
+			filename << (char)std::tolower(it);
+	}
+
+	filename << ".png";
+	return filename.str();
+}
+
+
+double Facture::get_total() const {
+    double grand_total = 0.0;
+
+    for (const auto& i : riso_prints)
+        grand_total += i->rest_to_pay();
+
+    for (const auto& [object, qty_price] : customs) {
+        const auto& [quantity, price] = qty_price;
+        grand_total += price * quantity;
+    }
+    return grand_total;
+}
+
 std::string Facture::generate_number(Facture::TYPE type) {
 	std::stringstream ss;
-	int inc = 0;
 
-	do {
-		ss.str("");
-		ss.clear();
-		ss << (date.tm_year + 1900) % 100 
-			<< fit(date.tm_mon + 1, 2, 2, '0')
-			<< fit(date.tm_mday, 2, 2, '0') << "-"
-			<< fit(to_hex(date.tm_hour + date.tm_min + inc), 3, 0, '0');
-		inc++;
-	} while (!get_bill_filename(ss.str()).empty());
+	// YYMMDD
+	ss << std::setfill('0')
+	   << std::setw(2) << (chrono.tm_year % 100)
+	   << std::setw(2) << (chrono.tm_mon + 1)
+	   << std::setw(2) << chrono.tm_mday
+	   << "-";
+
+	// 3-digit code from time
+	int code = (chrono.tm_hour * 60 + chrono.tm_min) % 1000;
+
+	ss << std::setw(3) << std::setfill('0') << code;
+
+	// ss.str("");
+	// ss.clear();
+	// ss << (chrono.tm_year + 1900) % 100;
+	// ss << fit(chrono.tm_mon + 1, 2, 2, '0');
+	// ss << fit(chrono.tm_mday, 2, 2, '0') << "-";
+	// ss << std::hex << std::setw(3) << std::setfill('0');
+	// ss << chrono.tm_hour + chrono.tm_min;
+	// ss << std::dec;
 
 	switch (type) {
 		case Facture::TYPE::FACTURE:
 			ss << "F";
 			break;
 		case Facture::TYPE::DEVIS:
-			ss << "E";
+			ss << "D";
 			break;
 		case Facture::TYPE::TICKET:
 			ss << "T";
@@ -95,15 +207,16 @@ std::string Facture::generate_number(Facture::TYPE type) {
 	return ss.str();
 }
 
-void Facture::make_new_custom() {
-	std::string object = userline("objet");
+CustomLine Facture::add_custom_line() {
+	int quantity = 0;
 	double price = 0.0;
+	std::string object = userline("objet");
+	user_value("quantity", quantity);
 	user_value("price", price);
-	auto [it, inserted] = customs.emplace(object, price);
-	if (!inserted) {
-		it->second += price;
-	}
-	this->total += price;
+	std::pair<int, double> target = std::make_pair(quantity, price);
+	std::pair<std::string, std::pair<int, double> > line(object, target);
+	customs.push_back(line);
+	return line;
 }
 
 Risography* Facture::add_riso_print() {
@@ -152,6 +265,6 @@ Risography* Facture::add_riso_print() {
 	user_value("Réduction (%)", job->discount_percentage, false);
 	job->calc_quantity();
 	this->total += job->rest_to_pay();
-	risoprints.push_back(job);
+	riso_prints.push_back(job);
 	return job;
 }

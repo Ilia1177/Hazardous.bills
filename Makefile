@@ -26,7 +26,7 @@ PKG_LIBS    = $(shell pkg-config --libs   cairo pango pangocairo)
 CXXFLAGS	=	-Wall -Wextra -Werror -std=c++20 -g -O0 $(INCS) $(PKG_CFLAGS)
 ASANFLAGS   = -fsanitize=address
 
-LDFLAGS  += -L/usr/local/lib -lpng -lsqlite3 $(PKG_LIBS)
+LDFLAGS  += -L/usr/local/lib -lpng -lsqlite3 $(PKG_LIBS) -lcurl
 
 SRC_DIR = src/
 INC_DIR = inc/
@@ -37,9 +37,10 @@ SRCS	= 	main.cpp\
 			Risography.cpp\
 			Database.cpp\
 			tools.cpp\
-			img.cpp\
 			Facture.cpp\
-			Font.cpp \
+			config.cpp\
+			Client.cpp\
+			smtp.cpp\
 
 SRCS 	:= 	$(addprefix $(SRC_DIR), $(SRCS))
 OBJS	=	$(SRCS:$(SRC_DIR)%.cpp=$(OBJ_DIR)%.o)

@@ -6,15 +6,15 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
-
+#include <cctype>
+#include <algorithm>
+#include "tools.h"
 #include "Database.hpp"
+#include "tools.h"
 namespace fs = std::filesystem;
 
 // Destructor
 Facturier::~Facturier(void) {
-    if (_prices && _prices.is_open()) {
-        _prices.close();
-    }
 	if (_facture) {
 		delete _facture;
 	}
@@ -29,18 +29,20 @@ Facturier::Facturier():
 	_margin(0), 
 	_width(0), 
 	_contentWidth(0), 
-	_facture(nullptr),
-	_err_db_msg(nullptr)
+	_facture(nullptr)
 {
+	_consumablePrices.clear();
+    _paperPrices.clear();
+	_shippingCosts.clear();
+	std::ifstream prices("prices.ini");
+	_config = load_config("config.ini");
 	_initialize();
-	// _outStream.str("");
-	// _outStream.clear();
-    if (!_prices || !_prices.is_open())
-        throw std::runtime_error("Cannot open database");
-    read_section_from("consumable", _consumablePrices);
-    read_section_from("paper", _paperPrices);
-    read_section_from("shipping", _shippingCosts);
-
+    if (!prices || !prices.is_open())
+        throw std::runtime_error("Cannot open prices.ini");
+    read_section_from("consumable", _consumablePrices, prices);
+    read_section_from("paper", _paperPrices, prices);
+    read_section_from("shipping", _shippingCosts, prices);
+	prices.close();
 
 	std::stringstream buffer;
 	std::ifstream headerFile("ascii/header-printjob.txt");
@@ -56,7 +58,7 @@ Facturier::Facturier():
 		buffer.clear();
 		headerFile.close();              // clear EOF + error flags
 	} else {
-		_header = "-- no header --";
+		_header = "";
 	};
 
 	std::ifstream footerFile("ascii/CGV.txt");
@@ -67,10 +69,10 @@ Facturier::Facturier():
 		buffer.clear();
 		footerFile.close(); 
 	} else {
-		_conditions_of_sales = "-- no footer --";
+		_conditions_of_sales = "";
 	}
 
-	_db = new Database("data/facture.db");
+	_db = new Database("data.db", this);
 	verbose("Table created successfully");
 
     _font.family  = "Menlo";
@@ -92,13 +94,6 @@ void Facturier::verbose(const std::string& txt) {
 
 bool Facturier::main_menu()
 {
-	std::vector<std::string> list;
-
-	list = {	"exit",
-				"Nouveau devis", 
-				"Facture d'après devis", 
-				"Nouveau ticket"};
-
 	while (!g_interrupt) {
 		clearScreen();
 		std::string titlLabel = "!! RISOGRAPH INVOICER by hazardous editorial";
@@ -110,90 +105,122 @@ bool Facturier::main_menu()
 		std::cout << cmdsLabel << "\n";
 		std::cout << fit("*", _width, 2, '*') << "\n\n";
 		std::cout << generate_header();
-		switch(dial_menu(list)) {
-			case 0: return false;
-			case 1: make_new_facture(); break;
-			// case 2: make_bill_from(); break;
-			// case 3: new_ticket(); break;
-			default: return false;
+
+		switch(dial_menu({	"Exit",
+							"Nouveau devis", 
+							"Voir les documents"})) {
+			case 1: 
+				make_new_facture(); 
+				break;
+			case 2: 
+				_db->browse_documents();
+				break;
+			default: case 0: 
+				return false;
 		}
 	}
 	return true;
 }
 
-void Facturier::make_bill_from()
-{
-	// std::string bill_num;
-	//
-	// while(!g_interrupt) {
-	// 	user_input("Numeros de devis: ", bill_num, true);
-	// 	if (bill_num.length() != BILL_NUMBER_LENGTH + 1) {
-	// 		clearInputLine();
-	// 		std::cerr << "Invalid number. Should be formatted as 'XXXXXX-XXXX'. ";
-	// 	} else if (get_bill_filename(bill_num).empty()) {
-	// 		clearInputLine();
-	// 		std::cerr << "No devis at number " << bill_num << ". ";
-	// 	} else {
-	// 		std::ifstream estimate;
-	// 		std::string fileName = get_bill_filename(bill_num);
-	// 		size_t pos = fileName.find(bill_num);
-	// 		size_t dot = fileName.find(".");
-	// 		if (pos + 11 == std::string::npos || dot == std::string::npos)
-	// 			throw std::invalid_argument("Invalid file name.");
-	// 		std::string clientName = fileName.substr(pos + 11);
-	// 		std::string fullPath = "devis/" + fileName;
-	// 		estimate.open(fullPath);
-	// 		if (!estimate || !estimate.is_open()) {
-	// 			throw std::invalid_argument(fileName + " is an invoice allready.");
-	// 		}
-	// 		std::string line;
-	// 		// std::string newBillNumber = bill_number(INVOICE);
-	// 		while(getline(estimate, line)) {
-	// 			size_t found = line.find(bill_num);
-	// 			if (found != std::string::npos) {
-	// 				line = "    Facture n°" + newBillNumber + " du:" + formated_date() + " d'après devis n°" + bill_num + "E";
-	// 			} 
-	// 			_outStream << line + "\n";
-	// 		}
-	// 		line.clear();
-	// 		std::cout << _outStream.str();
-	// 		user_input("Enregistrer la facture ? (y/n): ", line, false);
-	// 		if (line == "y" || line == "Y") {
-	// 			std::string folder = "factures/";
-	// 			std::string outfileName = newBillNumber + clientName;
-	// 			std::ofstream outfile(folder + outfileName);
-	// 			if (!outfile.is_open()) 
-	// 				throw std::runtime_error("Could not open file for writing.");
-	// 			outfile << _outStream.str();
-	// 			outfile.close();
-	// 			std::cout << outfileName << " has been register.\n";
-	// 			outfileName.resize(outfileName.size() < 4 ? 0 : outfileName.size() - 4);
-	// 			to_png(folder, outfileName);
-	// 			user_input("Press any key to continue", line, false, 0);
-	// 		}
-	// 		return;
-	// 	}
-	// }
-}
-
 void Facturier::run(int ac, char *av[])
 {
 	std::vector<std::string> args;
+	Database::PrintMode mode = Database::PREVIEW;
 
-	bool print_job = false;
 	for(int i = 1; i < ac; i++) {
 		std::string arg(av[i]);
 		if (arg == "--verbose") {
 			_verb = true;
-		} else if (arg.starts_with("--print=")) {
-			std::string opt = arg.substr(8);
-			if (opt=="test") {
-				print_job = true;
-			} else if (opt=="all") {
-				_db->print_all_documents(Database::PREVIEW);
-				return;
+		} else if (arg.starts_with("--view=")) {
+			std::string opt = arg.substr(7);
+			if (opt == "preview") {
+				mode = Database::PREVIEW;
+			} else if (opt == "complete") {
+				mode = Database::COMPLETE;
 			} else {
 				throw std::invalid_argument(arg);
+			}
+		} else if (arg.starts_with("--print=")) {
+			std::string opt = arg.substr(8);
+			bool isNumber = !opt.empty() &&
+				std::all_of(opt.begin(), opt.end(), [](unsigned char c) {
+					return std::isdigit(c);
+				});
+			if (opt=="test") {
+				_facture = new Facture(this);
+				_facture->riso_prints.push_back(new Risography(this));
+				_facture->customs.push_back(std::make_pair("Objet test", std::make_pair(3, 0.5)));
+				_facture->customs.push_back(std::make_pair("Objet test 2", std::make_pair(35, 1.5)));
+				_facture->client = new Client("Client test", "email test", "addr test", "teltest", "siret");
+				std::cout << _facture->generate_stream();
+			} else if (opt=="all") {
+				_db->print_all_documents(mode);
+			} else if (opt == "devis") {
+				_db->print_all_documents(mode, Facture::TYPE::DEVIS);
+			} else if (opt == "ticket") {
+				_db->print_all_documents(mode, Facture::TYPE::TICKET);
+			} else if (opt == "facture") {
+				_db->print_all_documents(mode, Facture::TYPE::FACTURE);
+			} else if (isNumber) {
+				 int id = std::atoi(opt.c_str());
+				 Facture* f = _db->get_document(id);
+				 if (f) std::cout << f->generate_stream();
+			} else {
+				throw std::invalid_argument(arg);
+			}
+			return;
+		} else if (arg.starts_with("--convert=")) {
+			std::string opt = arg.substr(10);
+			bool isNumber = !opt.empty() &&
+				std::all_of(opt.begin(), opt.end(), [](unsigned char c) {
+					return std::isdigit(c);
+				});
+			if (!isNumber) {
+				throw std::invalid_argument(arg);
+			}
+			int id = std::atoi(opt.c_str());
+			Facture* f = _db->get_document(id);
+			if (f && f->type != Facture::TYPE::FACTURE) {
+				_db->update_document(id, Facture::TYPE::FACTURE, Facture::STATUS::CONVERTED);
+				make_png(f->generate_stream(), _font, "documents/factures/" + f->get_filename());
+			} else if (f) {
+				std::cout << "document " << id << " déja enregistré en tant que facture";
+			}
+			return;
+		} else if (arg.starts_with("--send=")) {
+			std::string opt = arg.substr(7);
+			bool isNumber = !opt.empty() &&
+				std::all_of(opt.begin(), opt.end(), [](unsigned char c) {
+					return std::isdigit(c);
+				});
+			if (!isNumber) {
+				throw std::invalid_argument(arg);
+			} else {
+				int id = std::atoi(opt.c_str());
+				Facture *f = _db->get_document(id);
+				if (f) {
+					f->generate_stream();
+					if (userline("Send document ? (y/n)") != "y")
+						return;
+					if (f->client->get_email().empty()) {
+						throw std::invalid_argument("No email in this document");
+					}
+					std::string folder = f->type == Facture::TYPE::FACTURE ? "factures/" : "devis/";
+					std::string filepath = "documents/" + folder + f->get_filename();
+					make_png(f->generate_stream(), _font, filepath);
+					send_email_smtp(
+						f->client->get_email(),
+						"Devis " + f->number,
+						EMAIL_BODY,
+						folder + f->get_filename(),
+						get_config("from"),
+						get_config("url"),
+						get_config("user"),
+						get_config("password")
+					);
+					std::cout << f->get_type() << " has been send to " << f->client->get_email();
+				}
+				return;
 			}
 		} else if (arg == "--version") {
 			std::cout << VERSION << std::endl;
@@ -206,61 +233,38 @@ void Facturier::run(int ac, char *av[])
 		}
 	}
 
-	if (print_job) {
-		_facture = new Facture(this);
-		_facture->header_strm = generate_header();
-		_facture->infos_strm = generate_infos();
-		_facture->jobs_strm = generate_job(new Risography(this));
-		_facture->customs["Objet test"] = 100;
-		_facture->custom_strm = generate_custom();
-		_facture->footer_strm = generate_footer();
-		std::cout << _facture->get_facture_stream();
-	} else {
-		main_menu();
-	}
+	main_menu();
 	return;
 }
 
-
+std::string Facturier::get_config(const std::string& str) {
+	return _config[str];
+}
 
 void Facturier::_initialize() 
 {
-	if (!fs::exists("factures")) {
-		fs::create_directory("factures");
-		fs::create_directory("factures/png");
-		std::cout << "Factures & png directory created.\n";
-	} else if (!fs::exists("factures/png")) {
-		fs::create_directory("factures/png");
-		std::cout << "factures/png Directory created.\n";
+	if (!fs::exists("documents")) {
+		fs::create_directory("documents");
+		std::cout << "documents directory created.\n";
 	}
-	if (!fs::exists("devis")) {
-		fs::create_directory("devis");
-		fs::create_directory("devis/png");
-		std::cout << "devis & png directory created.\n";
-	} else if (!fs::exists("devis/png")) {
-		fs::create_directory("devis/png");
-		std::cout << "devis/png created\n";
+	if (!fs::exists("documents/factures")) {
+		fs::create_directory("documents/factures");
+		std::cout << "documents/factures directory created.\n";
 	}
-	if (!fs::exists("tickets")) {
-		fs::create_directory("tickets");
-		fs::create_directory("tickets/png");
-		std::cout << "tickets/png directory created.\n";
-	} else if (!fs::exists("tickets/png")) {
-		fs::create_directory("tickets/png");
-		std::cout << "tikets/png\n";
+	if (!fs::exists("documents/devis")) {
+		fs::create_directory("documents/devis");
+		std::cout << "documents/devis directory created.\n";
+	} else if (!fs::exists("documents/tickets")) {
+		fs::create_directory("documents/tickets");
+		std::cout << "documents/tickets directory created\n";
 	}
-    _consumablePrices.clear();
-    _paperPrices.clear();
-	_shippingCosts.clear();
-    _prices.open("prices.ini");
+
 }
-
-
 
 std::string Facturier::generate_header()
 {
 	std::stringstream ss;
-	verbose("Register header");
+	verbose("header stream");
 	ss << _header << std::endl;;
     ss << "    Papier (nom.g/m2):" << fit("Consomable:\n", 36);
 
@@ -287,141 +291,113 @@ std::string Facturier::generate_header()
     }
     ss << "\n";
 	return ss.str();
-
 }
 
-std::string Facturier::generate_infos()
-{
-	verbose("Register infos");
-	std::stringstream ss;
-	std::string address;
-	// if (_facture) {
-	address = _facture->client_email.empty() ? "" : " (" + _facture->client_email + ")";
-	// }
-	ss << "    ****************************************************************\n";
-	ss << "    Devis n°" + _facture->number + " du: " + _facture->get_formated_date() + "\n";
-	ss << "    à: " << _facture->client_name << address << "\n";
-	ss << "    ****************************************************************\n\n";
-	return ss.str();
-}
-
-std::string to_hex(int value) {
-    std::ostringstream oss;
-    oss << std::hex << std::uppercase << value;
-    return oss.str();
-}
-
-// void Facturier::save_as(std::string& clientName)
+// std::string Facturier::generate_infos()
 // {
-//     std::string       input;
-//
-// 	clearScreen();
-// 	std::cout << _outStream.str();
-// 	user_input("Save the bill > (y/n): ", input, false);
-//     if (input != "Y" && input != "y") {
-// 		user_input("Quit without saving. Press any key to continue.", input, false, 0);
-// 		return;
-// 	}
-// 	std::ofstream outfile;
-// 	std::string folderName = "devis/";
-// 	std::string truncName = sanitize_filename(clientName);
-// 	user_input("As an invoice ? (y/n): ", input, true);
-// 	if (input == "y" || input == "Y")
-// 	{
-// 		folderName = "factures/";
-// 		if (!_facture) {
-// 			// _facture = true;
-// 			std::string line;
-// 			std::stringstream ss(_outStream.str());
-// 			_outStream.str("");
-// 			_outStream.clear();
-// 			while(getline(ss, line)) {
-// 				size_t found = line.find(_facture->number);
-// 				if (found != std::string::npos) {
-// 					_facture->number.replace(10, 1, "F");
-// 					line = "    Facture n°" + _facture->number + " du: " + _facture->get_formated_date(true);
-// 				}
-// 				_outStream << line + "\n";
-// 			}
-// 		}
-// 		std::string fileName = _facture->number + "_" + truncName;
-// 		outfile.open("factures/" + fileName + ".txt");
-// 	} else {
-// 		// _fileName = _billNumber + "_" + truncName;
-// 		// outfile.open("devis/" + _fileName + ".txt");
-// 	}
-// 	// _fileName = _billNumber + "_" + truncName;
-// 	// outfile.open(folderName + _fileName + ".txt");
-// 	if (!outfile || !outfile.is_open())
-// 		throw std::runtime_error("Could not open file for writing.");
-// 	outfile << _outStream.str();
-// 	outfile.close();
-// 	// std::cout << _fileName << " has been register.\n";
-// 	// to_png(folderName, _fileName);
-// 	// user_input("Press enter to continue", input, false);
+// 	verbose("Register infos");
+// 	std::stringstream ss;
+// 	std::string address;
+// 	// if (_facture) {
+// 	address = _facture->client->get_email().empty() ? "" : " (" + _facture->client->get_email() + ")";
+// 	// }
+// 	ss << "    ****************************************************************\n";
+// 	ss << "    Devis n°" + _facture->number + " du: " + _facture->date + "\n";
+// 	ss << "    à: " << _facture->client->get_name() << address << "\n";
+// 	ss << "    ****************************************************************\n\n";
+// 	return ss.str();
 // }
-//
-void Facturier::to_png(std::string& folder, std::string& fileName) {
-	std::string txtPath = folder + fileName + ".txt";
-	std::string pngPath = folder + "png/" + fileName + ".png";
-	txtToPng(txtPath, pngPath);
-	std::cout << pngPath << " has been saved as PNG\n";
+
+// std::string to_hex(int value) {
+//     std::ostringstream oss;
+//     oss << std::hex << std::uppercase << value;
+//     return oss.str();
+// }
+
+Font Facturier::get_font() {
+	return _font;
+}
+
+std::string Facturier::get_conditions_of_sales() {
+	return _conditions_of_sales;
 }
 
 void Facturier::make_new_facture()
 {
+	if (_facture) delete _facture;
 	_facture = new Facture(this);
+	_facture->client = new Client;
+	_facture->client->set_name(userline("client name"));
+	_facture->client->set_email(userline("client address", false));
 
-	_facture->header_strm = generate_header();
-
-	_facture->client_name = userline("client name");
-	_facture->client_email = userline("client address", false);
-
-	_facture->infos_strm = generate_infos();
 	clearScreen();
-
-	std::cout << _facture->header_strm;
-	std::cout << _facture->infos_strm;
-
-	std::string newJob("");
-	std::vector<std::string> menu;
-
-	menu = {	"Exit & save",
-				"new job",
-				"custom line"};
+	std::cout << generate_header();
+	std::cout << _facture->generate_infos();
 
 	bool done = false;
 	while(!g_interrupt && !done) {
-		switch(dial_menu(menu)) {
-			case 0: done = true; break;
+		switch(dial_menu({	"Exit & enregistrer",
+							"Nouvelle risography",
+							"Nouvelle ligne"}))
+		{
+			case 0: 
+				done = true;
+				break;
 			case 1: 
-				newJob = generate_job(_facture->add_riso_print());
-				_facture->jobs_strm += newJob;
+				_facture->add_riso_print();
 				break;
 			case 2: 
-				_facture->make_new_custom();
+				_facture->add_custom_line();
+				break;
 			default: break;
 		}
 		clearScreen();
-		std::cout << _facture->get_facture_stream();
+		std::cout << _facture->generate_stream();
 	}
 
-	_facture->custom_strm = generate_custom();
-	_facture->footer_strm = generate_footer();
-	std::cout << _facture->get_facture_stream();
-
-	switch (dial_menu({	"Exit without saving", 
-						"invoice", 
-						"estimate",
-						"draft"})) {
-		case 0: break;
-		case 1: save_facture_as(_facture);
-		case 2: save_facture_as(_facture);
-		default: break;
+	std::string filepath = "documents/";
+	switch (dial_menu({	"Ne pas enregistrer", 
+						"Enregistrer devis", 
+						"Enregistrer facture",
+						"Enregistrer brouillon"})) {
+		case 1:
+				_facture->status = Facture::STATUS::APPROVED;
+				_facture->type = Facture::TYPE::DEVIS;
+				_db->save_facture(_facture);
+				filepath += "devis/" + _facture->get_filename();
+				make_png(_facture->generate_stream(), _font, filepath);
+				break;
+		case 2:
+				_facture->status = Facture::STATUS::APPROVED;
+				_facture->type = Facture::TYPE::FACTURE;
+				_db->save_facture(_facture);
+				filepath += "factures/" + _facture->get_filename();
+				make_png(_facture->generate_stream(), _font, filepath);
+				break;
+		case 3: 
+				_facture->status = Facture::STATUS::DRAFT;
+				_facture->type = Facture::TYPE::DEVIS;
+				_db->save_facture(_facture);
+				break;
+		case 0: default: break;
 	}
 
 	clearScreen();
-	_facture->get_facture_stream();
+	_facture->generate_stream();
+	if (_facture->status == Facture::STATUS::APPROVED) {
+		if (userline("Envoyer document par email ? (y/n)") == "y") {
+			send_email_smtp(
+				_facture->client->get_email(),
+				_facture->get_type() + " " + _facture->number,
+				EMAIL_BODY,
+				filepath,
+				get_config("from"),
+				get_config("url"),
+				get_config("user"),
+				get_config("password")
+			);
+		}
+	}
 }
 
 std::string Facturier::generate_footer()
@@ -435,74 +411,74 @@ std::string Facturier::generate_footer()
 	return ss.str();
 }
 
-std::string Facturier::generate_custom() {
-	std::stringstream ss;
-	
-	if (_facture->customs.size() > 0) {
-		ss << "    |                   objet                    |      prix       |\n";
-		ss << "    |============================================|=================|\n";
-	}
-	for (const auto& [key, value] : _facture->customs) {
-		ss << fit("|", 5) << key << fit("|", 45 - key.length()) << fit(value, 16) + "€|\n"; 
-		ss << "    |--------------------------------------------|-----------------|\n";
-	}
-	ss << "\n";
-	return ss.str();
-}
+// std::string Facturier::generate_custom() {
+// 	std::stringstream ss;
+//
+// 	if (_facture->customs.size() > 0) {
+// 		ss << "    |                   objet                    |      prix       |\n";
+// 		ss << "    |============================================|=================|\n";
+// 	}
+// 	for (const auto& [key, value] : _facture->customs) {
+// 		ss << fit("|", 5) << key << fit("|", 45 - key.length()) << fit(value, 16) + "€|\n"; 
+// 		ss << "    |--------------------------------------------|-----------------|\n";
+// 	}
+// 	ss << "\n";
+// 	return ss.str();
+// }
 
-std::string Facturier::generate_job(Risography* job)
-{
-	if (!job) {
-		verbose("job is null...");
-		return "";
-	}
-	verbose("generate print job");
+// std::string Facturier::generate_job(Risography* job)
+// {
+// 	if (!job) {
+// 		verbose("job is null...");
+// 		return "";
+// 	}
+// 	verbose("generate print job");
+//
+// 	std::stringstream ss;
+// 	if (_facture->riso_prints.size() > 1)
+// 		ss << "    ****************************************************************\n\n";
+//     std::string colorVerso =
+//         (job->layersB > 0) ? " - " + std::to_string(job->layersB) + "/verso" : "";
+//     std::string colorStr = std::to_string(job->layersA) + "/recto" + colorVerso;
+//     std::string copyStr = std::to_string(job->copy);
+//     int         offset = 68 - 14 - 22 - 1;
+//     ss << "    Intitulé: " << job->description << end_str(22, offset - job->description.length());
+//     ss << "    Couleurs: " << colorStr << end_str(22, offset - colorStr.length());
+//     ss << "    Copies  : " << copyStr << end_str(22, offset - copyStr.length());
+//     ss << "    Papier  : " << job->paper << end_str(22, offset - job->paper.length());
+//
+// 	verbose("generate print job 1");
+//     std::string feesStr = (job->total_shipping() > 0.0) ? fit(job->total_shipping(), 8) : fit("--", 8);
+//     std::string totalDiscountStr =
+//         (job->total_discount() > 0.0) ? fit(job->total_discount() * -1, 8) : "      --";
+// 	verbose("generate print job 2");
+//     std::string discountStr = (job->discount_percentage > 0.0) ? fit(job->discount_percentage, 12) : "--";
+//
+// 	verbose("generate print job 3");
+//     ss << "    |---------------------------------------|" + end_str();
+//     ss << "    |    désignation    | quantité |  prix  |" + end_str();
+//     ss << "    |===================|==========|========|" + end_str();
+// 	ss << new_line("feuilles A3", job->sheet_quantity, job->total_paper());
+// 	ss << new_line("masters", job->masters_quantity, job->total_master());
+// 	ss << new_line("encre (passages)", job->sheet_quantity * job->masters_quantity, job->total_ink());
+// 	ss << new_line("plis/coupe/agrafe", job->staple_quantity + job->fold_per_unit, job->total_shaping());
+//     ss << "    |---------------------------------------|" << end_str();
+// 	ss << new_line("impression", job->labor_amount, job->total_labor());
+// 	ss << new_line("graphisme", job->graphic_amount, job->total_graphic());
+// 	ss << new_line("imposition", job->imposition_amount, job->total_imposition(), end_str());
+//     ss << "    |---------------------------------------|" + end_str();
+// 	ss << new_line("remise (%)", discountStr, totalDiscountStr);
+// 	ss << new_line("port (kg)", job->weight, feesStr);
+//     ss << "    |=======================================|" + end_str();
+//     ss << "    |sous total (ttc)" + fit(job->total, 22) + "€" + "|" + end_str();
+//     ss << "    |=======================================|" + end_str();
+//     ss << "    |" + fit(job->unit_cost, 32) + "€/copie|" + end_str() + "\n";
+//
+// 	verbose("finish generating job");
+// 	return ss.str();
+// }
 
-	std::stringstream ss;
-	if (_facture->risoprints.size() > 1)
-		ss << "    ****************************************************************\n\n";
-    std::string colorVerso =
-        (job->layersB > 0) ? " - " + std::to_string(job->layersB) + "/verso" : "";
-    std::string colorStr = std::to_string(job->layersA) + "/recto" + colorVerso;
-    std::string copyStr = std::to_string(job->copy);
-    int         offset = 68 - 14 - 22 - 1;
-    ss << "    Intitulé: " << job->description << end_str(22, offset - job->description.length());
-    ss << "    Couleurs: " << colorStr << end_str(22, offset - colorStr.length());
-    ss << "    Copies  : " << copyStr << end_str(22, offset - copyStr.length());
-    ss << "    Papier  : " << job->paper << end_str(22, offset - job->paper.length());
-
-	verbose("generate print job 1");
-    std::string feesStr = (job->total_shipping() > 0.0) ? fit(job->total_shipping(), 8) : fit("--", 8);
-    std::string totalDiscountStr =
-        (job->total_discount() > 0.0) ? fit(job->total_discount() * -1, 8) : "      --";
-	verbose("generate print job 2");
-    std::string discountStr = (job->discount_percentage > 0.0) ? fit(job->discount_percentage, 12) : "--";
-
-	verbose("generate print job 3");
-    ss << "    |---------------------------------------|" + end_str();
-    ss << "    |    désignation    | quantité |  prix  |" + end_str();
-    ss << "    |===================|==========|========|" + end_str();
-	ss << new_job_line("feuilles A3", job->sheet_quantity, job->total_paper());
-	ss << new_job_line("masters", job->masters_quantity, job->total_master());
-	ss << new_job_line("encre (passages)", job->sheet_quantity * job->masters_quantity, job->total_ink());
-	ss << new_job_line("plis/coupe/agrafe", job->staple_quantity + job->fold_per_unit, job->total_shaping());
-    ss << "    |---------------------------------------|" << end_str();
-	ss << new_job_line("impression", job->labor_amount, job->total_labor());
-	ss << new_job_line("graphisme", job->graphic_amount, job->total_graphic());
-	ss << new_job_line("imposition", job->imposition_amount, job->total_imposition(), end_str());
-    ss << "    |---------------------------------------|" + end_str();
-	ss << new_job_line("remise (%)", discountStr, totalDiscountStr);
-	ss << new_job_line("port (kg)", job->weight, feesStr);
-    ss << "    |=======================================|" + end_str();
-    ss << "    |sous total (ttc)" + fit(job->total, 22) + "€" + "|" + end_str();
-    ss << "    |=======================================|" + end_str();
-    ss << "    |" + fit(job->unit_cost, 32) + "€/copie|" + end_str() + "\n";
-
-	verbose("finish generating job");
-	return ss.str();
-}
-
-void Facturier::read_section_from(const std::string& section, std::map<std::string, std::pair<int, double> >& list)
+void Facturier::read_section_from(const std::string& section, std::map<std::string, std::pair<int, double> >& list, std::ifstream &file)
 {
     std::string line, paperName, gram;
 	int gramValue;
@@ -510,11 +486,11 @@ void Facturier::read_section_from(const std::string& section, std::map<std::stri
 	std::pair<int, double> infos;
     std::string start = "[" + section + "]";
 
-    while (std::getline(_prices, line)) {
+    while (std::getline(file, line)) {
         if (line == start)
             break;
     }
-    while (std::getline(_prices, line)) {
+    while (std::getline(file, line)) {
 		trim(line);
 		if (line.empty() || line[0] == '#') continue;
         if (line[0] == '[') break;
@@ -534,71 +510,72 @@ void Facturier::read_section_from(const std::string& section, std::map<std::stri
 			std::cerr << "Error: " << e.what() << "\n";
 		}
     }
-    _prices.clear();                 // Clear any error flags
-    _prices.seekg(0, std::ios::beg); // Move the get pointer to the beginning of the file
+    file.clear();                 // Clear any error flags
+    file.seekg(0, std::ios::beg); // Move the get pointer to the beginning of the file
 }
 
-void Facturier::save_facture_as(Facture* facture)
-{
-    std::string       input;
+// void Facturier::save_facture_as(Facture* facture)
+// {
+//     std::string       input;
+//
+// 	if (!facture)
+// 		return;
+//
+// 	clearScreen();
+// 	Facture::TYPE type = facture->type;
+//
+// 	std::string fileName;
+// 	std::ofstream outfile;
+// 	std::string folderName = "devis/";
+// 	std::string truncName = facture->client->get_name();
+// 	// std::string truncName = sanitize_filename(facture->client_name);
+// 	if (type == Facture::TYPE::FACTURE)
+// 	{
+// 		folderName = "factures/";
+// 		facture->type = Facture::TYPE::FACTURE;
+// 			std::string line;
+// 			std::stringstream ss(facture->infos_strm);
+// 			facture->infos_strm.clear();
+// 			while(getline(ss, line)) {
+// 				size_t found = line.find(_facture->number);
+// 				if (found != std::string::npos) {
+// 					_facture->number.replace(10, 1, "F");
+// 					line = "    Facture n°" + _facture->number + " du: " + _facture->get_formated_date(true);
+// 				}
+// 				facture->infos_strm += line + "\n";
+// 			}
+// 		outfile.open("factures/" + fileName + ".txt");
+// 	} else {
+// 		facture->type = Facture::TYPE::DEVIS;
+// 	}
+// 	_db->save_facture(facture);
+// 	fileName = _facture->number + "_" + truncName;
+// 	// outfile.open(folderName + fileName + ".txt");
+// 	// if (!outfile || !outfile.is_open())
+// 	// 	throw std::runtime_error("Could not open file for writing.");
+// 	// outfile << facture->header_strm;
+// 	// outfile << facture->infos_strm;
+// 	// outfile << facture->jobs_strm;
+// 	// outfile << facture->footer_strm;
+// 	// outfile.close();
+//
+// 	// std::cout << fileName << ".txt has been register.\n";
+// 	make_png(facture->generate_stream(), _font, fileName + ".png");
+// 	// to_png(folderName, fileName);
+// 	std::cout << fileName << ".png has been register.\n";
+// 	userline("Press enter to continue", false);
+// }
 
-	if (!facture)
-		return;
-
-	clearScreen();
-	Facture::TYPE type = facture->type;
-
-	std::string fileName;
-	std::ofstream outfile;
-	std::string folderName = "devis/";
-	std::string truncName = sanitize_filename(facture->client_name);
-	if (type == Facture::TYPE::FACTURE)
-	{
-		folderName = "factures/";
-		facture->type = Facture::TYPE::FACTURE;
-			std::string line;
-			std::stringstream ss(facture->infos_strm);
-			facture->infos_strm.clear();
-			while(getline(ss, line)) {
-				size_t found = line.find(_facture->number);
-				if (found != std::string::npos) {
-					_facture->number.replace(10, 1, "F");
-					line = "    Facture n°" + _facture->number + " du: " + _facture->get_formated_date(true);
-				}
-				facture->infos_strm += line + "\n";
-			}
-		outfile.open("factures/" + fileName + ".txt");
-	} else {
-		facture->type = Facture::TYPE::DEVIS;
-	}
-	_db->save_facture(facture);
-	fileName = _facture->number + "_" + truncName;
-	// outfile.open(folderName + fileName + ".txt");
-	// if (!outfile || !outfile.is_open())
-	// 	throw std::runtime_error("Could not open file for writing.");
-	// outfile << facture->header_strm;
-	// outfile << facture->infos_strm;
-	// outfile << facture->jobs_strm;
-	// outfile << facture->footer_strm;
-	// outfile.close();
-
-	// std::cout << fileName << ".txt has been register.\n";
-	make_png(facture->get_facture_stream(), _font, fileName + ".png");
-	// to_png(folderName, fileName);
-	std::cout << fileName << ".png has been register.\n";
-	userline("Press enter to continue", false);
-}
-
-void Facturier::read_section_from(const std::string& section, std::map<double, double>& list)
+void Facturier::read_section_from(const std::string& section, std::map<double, double>& list, std::ifstream &file)
 {
     std::string line;
     std::string start = "[" + section + "]";
 
-    while (std::getline(_prices, line)) {
+    while (std::getline(file, line)) {
         if (line == start)
             break;
     }
-    while (std::getline(_prices, line)) {
+    while (std::getline(file, line)) {
 		trim(line);
 		if (line.empty() || line[0] == '#') continue;
         if (line[0] == '[') break;
@@ -621,20 +598,20 @@ void Facturier::read_section_from(const std::string& section, std::map<double, d
             std::cerr << "Invalid line format: " << line << std::endl;
         }
     }
-    _prices.clear();                 // Clear any error flags
-    _prices.seekg(0, std::ios::beg); // Move the get pointer to the beginning of the file
+    file.clear();                 // Clear any error flags
+    file.seekg(0, std::ios::beg); // Move the get pointer to the beginning of the file
 }
 
-void Facturier::read_section_from(const std::string& section, std::map<std::string, double>& list)
+void Facturier::read_section_from(const std::string& section, std::map<std::string, double>& list, std::ifstream &file)
 {
     std::string line;
     std::string start = "[" + section + "]";
 
-    while (std::getline(_prices, line)) {
+    while (std::getline(file, line)) {
         if (line == start)
             break;
     }
-    while (std::getline(_prices, line)) {
+    while (std::getline(file, line)) {
 		trim(line);
 		if (line.empty() || line[0] == '#') continue;
         if (line[0] == '[') break;
@@ -655,9 +632,11 @@ void Facturier::read_section_from(const std::string& section, std::map<std::stri
             std::cerr << "Invalid line format: " << line << std::endl;
         }
     }
-    _prices.clear();                 // Clear any error flags
-    _prices.seekg(0, std::ios::beg); // Move the get pointer to the beginning of the file
+    file.clear();                 // Clear any error flags
+    file.seekg(0, std::ios::beg); // Move the get pointer to the beginning of the file
 }
 
 
-
+	const std::map<std::string, double>& 					Facturier::getConsumablePrices() const {return _consumablePrices;};
+    const std::map<std::string, std::pair<int, double> >&	Facturier::getPaperPrices() const  {return _paperPrices;};
+	const std::map<double, double>& 						Facturier::getShippingPrices()const {return _shippingCosts;};

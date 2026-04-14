@@ -7,3 +7,5 @@ devis/
 facture/
 bill
 *.png
+**/*.db
+config.ini

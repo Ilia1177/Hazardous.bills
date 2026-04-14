@@ -6,6 +6,7 @@
 #include <string>
 #include <exception>
 #include <utility>
+#include "tools.h"
 
 namespace fs = std::filesystem;
 // Helper function to prompt and read a line
@@ -143,10 +144,10 @@ void clearScreen()
     std::cout << "\033[2J\033[H";
 }
 
-void moveCursor(int row, int col)
-{
-    std::cout << "\033[" << row << ";" << col << "H";
-}
+// void moveCursor(int row, int col)
+// {
+//     std::cout << "\033[" << row << ";" << col << "H";
+// }
 
 void eraseLines(int lines)
 {
@@ -156,10 +157,10 @@ void eraseLines(int lines)
     std::cout << std::flush;
 }
 
-void moveCursorUp(int lines)
-{
-    std::cout << "\033[" << lines << "A";
-}
+// void moveCursorUp(int lines)
+// {
+//     std::cout << "\033[" << lines << "A";
+// }
 
 void clearLine()
 {
@@ -223,71 +224,71 @@ bool user_value(const std::string& str, int& value, bool blocking) {
 	return true;
 }
 
-bool user_input(const std::string& str, std::string& input, bool blocking = true, size_t maxLength) {
-	std::string line = "";
+// bool user_input(const std::string& str, std::string& input, bool blocking = true, size_t maxLength) {
+// 	std::string line = "";
+//
+// 	while (!g_interrupt) {
+// 		std::cout << str;
+// 		if (!std::getline(std::cin, line))
+// 			return false;
+// 		if (g_interrupt)
+// 			return false;
+// 		trim(line);
+// 		if (maxLength == 0)
+// 			break;
+// 		if (line.length() > maxLength) {
+// 			clearInputLine();
+// 			std::cout << maxLength << " characters max. ";
+// 			continue;
+// 		} else if (blocking && line.empty()) {
+// 			clearInputLine();
+// 			std::cout << "Field needed ! ";
+// 			continue;
+// 		}
+// 		break;
+// 	};
+// 	input = line;
+// 	return true;
+// }
 
-	while (!g_interrupt) {
-		std::cout << str;
-		if (!std::getline(std::cin, line))
-			return false;
-		if (g_interrupt)
-			return false;
-		trim(line);
-		if (maxLength == 0)
-			break;
-		if (line.length() > maxLength) {
-			clearInputLine();
-			std::cout << maxLength << " characters max. ";
-			continue;
-		} else if (blocking && line.empty()) {
-			clearInputLine();
-			std::cout << "Field needed ! ";
-			continue;
-		}
-		break;
-	};
-	input = line;
-	return true;
-}
+// std::string get_bill_filename(const std::string& pattern)
+// {
+// 	std::string empty("");
+//
+//     if (!fs::exists("factures") && !fs::exists("devis")) {
+//         return empty;
+//     }
+//     for (const auto& entry : fs::directory_iterator("factures")) {
+//         std::string filename = entry.path().filename().string();
+//         if (filename.find(pattern) != std::string::npos) {
+//             return filename;
+//         }
+//     }
+//     for (const auto& entry : fs::directory_iterator("devis")) {
+//         std::string filename = entry.path().filename().string();
+//         if (filename.find(pattern) != std::string::npos) {
+//             return filename;
+//         }
+//     }
+//     for (const auto& entry : fs::directory_iterator("tickets")) {
+//         std::string filename = entry.path().filename().string();
+//         if (filename.find(pattern) != std::string::npos) {
+//             return filename;
+//         }
+//     }
+//     return empty;
+// }
 
-std::string get_bill_filename(const std::string& pattern)
-{
-	std::string empty("");
-
-    if (!fs::exists("factures") && !fs::exists("devis")) {
-        return empty;
-    }
-    for (const auto& entry : fs::directory_iterator("factures")) {
-        std::string filename = entry.path().filename().string();
-        if (filename.find(pattern) != std::string::npos) {
-            return filename;
-        }
-    }
-    for (const auto& entry : fs::directory_iterator("devis")) {
-        std::string filename = entry.path().filename().string();
-        if (filename.find(pattern) != std::string::npos) {
-            return filename;
-        }
-    }
-    for (const auto& entry : fs::directory_iterator("tickets")) {
-        std::string filename = entry.path().filename().string();
-        if (filename.find(pattern) != std::string::npos) {
-            return filename;
-        }
-    }
-    return empty;
-}
-
-void stream_find_replace(std::stringstream& ss, const std::string& search, const std::string& replace) {
-    std::string content = ss.str();
-    size_t pos = content.find(search);
-    
-    if (pos != std::string::npos) {
-        content.replace(pos, search.length(), replace);
-        ss.str(content);
-        ss.clear();
-    }
-}
+// void stream_find_replace(std::stringstream& ss, const std::string& search, const std::string& replace) {
+//     std::string content = ss.str();
+//     size_t pos = content.find(search);
+//
+//     if (pos != std::string::npos) {
+//         content.replace(pos, search.length(), replace);
+//         ss.str(content);
+//         ss.clear();
+//     }
+// }
 
 // Usage
 std::string random_string(size_t length, const std::vector<std::string>& charset)
@@ -306,26 +307,26 @@ std::string random_string(size_t length, const std::vector<std::string>& charset
     return result;
 }
 
-std::string sanitize_filename(const std::string& name)
-{
-    std::string result;
-
-	size_t len = 0;
-
-    for (char c : name) {
-		if (len > 8) {
-			break;
-		}
-        if (std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-') {
-            result += c;
-			len++;
-        } else if (!result.empty() && c == ' ') {
-			continue;
-        }
-    }
-
-    return result;
-}
+// std::string sanitize_filename(const std::string& name)
+// {
+//     std::string result;
+//
+// 	size_t len = 0;
+//
+//     for (char c : name) {
+// 		if (len > 8) {
+// 			break;
+// 		}
+//         if (std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-') {
+//             result += c;
+// 			len++;
+//         } else if (!result.empty() && c == ' ') {
+// 			continue;
+//         }
+//     }
+//
+//     return result;
+// }
 
 void trim(std::string& str)
 {
@@ -354,3 +355,115 @@ std::stringstream printMap(const std::map<std::string, std::pair<int, double> >&
     return ss;
 }
 
+#include <fstream>
+#include <map>
+
+std::map<std::string, std::string> load_config(const std::string& path) {
+    std::map<std::string, std::string> config;
+    std::ifstream file(path);
+    std::string line;
+    while (std::getline(file, line)) {
+        if (line.empty() || line[0] == ';' || line[0] == '[') continue;
+        auto pos = line.find('=');
+        if (pos == std::string::npos) continue;
+        std::string key   = line.substr(0, pos);
+        std::string value = line.substr(pos + 1);
+        // trim spaces
+        key.erase(key.find_last_not_of(" \t") + 1);
+        value.erase(0, value.find_first_not_of(" \t"));
+        config[key] = value;
+    }
+    return config;
+}
+
+// ---------------------------------------------------------------------------
+// make_png
+//
+//   fileStream – the raw text content you want rendered (not a filename).
+//   font       – visual options (see Font struct above).
+//   outputPath – where to write the PNG file (default: "output.png").
+//
+// Throws std::runtime_error on failure.
+// ---------------------------------------------------------------------------
+void make_png(std::string       fileStream,
+              Font              font,
+              std::string_view  outputPath)
+{
+	std::cout << "making png...\n";
+    // ── 1. Create a throw-away 1×1 surface to measure text ─────────────────
+    detail::Surface measure_surf{
+        cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 1, 1)
+    };
+    detail::Cr measure_cr{ cairo_create(measure_surf.get()) };
+
+    // ── 2. Build Pango layout for measurement ───────────────────────────────
+    detail::Layout layout{
+        pango_cairo_create_layout(measure_cr.get())
+    };
+
+    // Build a Pango font description string, e.g. "Monospace Bold Italic 14"
+    std::string font_desc_str = font.family;
+    if (font.bold)   font_desc_str += " Bold";
+    if (font.italic) font_desc_str += " Italic";
+    font_desc_str += std::format(" {}", static_cast<int>(font.size));
+
+    PangoFontDescription* fd = pango_font_description_from_string(font_desc_str.c_str());
+    if (!fd)
+        throw std::runtime_error("make_png: invalid font description: " + font_desc_str);
+
+    pango_layout_set_font_description(layout.get(), fd);
+    pango_font_description_free(fd);
+
+    pango_layout_set_text(layout.get(), fileStream.c_str(),
+                          static_cast<int>(fileStream.size()));
+
+    // ── 3. Measure the rendered text ────────────────────────────────────────
+    int text_w_px = 0, text_h_px = 0;
+    pango_layout_get_pixel_size(layout.get(), &text_w_px, &text_h_px);
+
+    const int img_w = text_w_px + 2 * font.padding;
+    const int img_h = text_h_px + 2 * font.padding;
+
+    if (img_w <= 0 || img_h <= 0)
+        throw std::runtime_error("make_png: computed image dimensions are non-positive");
+
+    // ── 4. Create the real surface at the correct size ───────────────────────
+    detail::Surface surface{
+        cairo_image_surface_create(CAIRO_FORMAT_ARGB32, img_w, img_h)
+    };
+    if (cairo_surface_status(surface.get()) != CAIRO_STATUS_SUCCESS)
+        throw std::runtime_error("make_png: failed to create Cairo surface");
+
+    detail::Cr cr{ cairo_create(surface.get()) };
+
+    // ── 5. Draw background ───────────────────────────────────────────────────
+    cairo_set_source_rgba(cr.get(), font.bg_r, font.bg_g, font.bg_b, font.bg_a);
+    cairo_paint(cr.get());
+
+    // ── 6. Re-create Pango layout on the real context ───────────────────────
+    detail::Layout real_layout{
+        pango_cairo_create_layout(cr.get())
+    };
+
+    PangoFontDescription* fd2 = pango_font_description_from_string(font_desc_str.c_str());
+    pango_layout_set_font_description(real_layout.get(), fd2);
+    pango_font_description_free(fd2);
+
+    pango_layout_set_text(real_layout.get(), fileStream.c_str(),
+                          static_cast<int>(fileStream.size()));
+
+    // ── 7. Render text ───────────────────────────────────────────────────────
+    cairo_translate(cr.get(), font.padding, font.padding);
+    cairo_set_source_rgba(cr.get(), font.fg_r, font.fg_g, font.fg_b, font.fg_a);
+    pango_cairo_show_layout(cr.get(), real_layout.get());
+
+    // ── 8. Write PNG ─────────────────────────────────────────────────────────
+    const std::string path_str{ outputPath };
+    cairo_status_t status =
+        cairo_surface_write_to_png(surface.get(), path_str.c_str());
+
+    if (status != CAIRO_STATUS_SUCCESS)
+        throw std::runtime_error(
+            std::format("make_png: cairo_surface_write_to_png failed ({})",
+                        cairo_status_to_string(status)));
+}
