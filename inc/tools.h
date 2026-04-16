@@ -14,9 +14,7 @@ bool send_email_smtp(const std::string& to,
                      const std::string& user     = "atelier@gmail.com",
                      const std::string& password = "your_app_password");
 
-void make_png(std::string       fileStream,
-              Font              font,
-              std::string_view  outputPath);
+void make_png(std::string fileStream, Font font, std::string_view  outputPath);
 std::string random_string(size_t length, const std::vector<std::string>& charset);
 bool user_value(const std::string& str, int& value, bool blocking = true);
 bool user_value(const std::string& str, double& value, bool blocking = true);
